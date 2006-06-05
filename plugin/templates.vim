@@ -174,45 +174,54 @@ endfunction
 
 function NOW.Templates.Template.expand_line() dict
   let self.offset = 0
-  let len = strlen(self.line)
+  let end = strlen(self.line)
   let new = ""
-  while self.offset < len
+  while self.offset < end
     let c = self.line[self.offset]
     if c == '<'
-      let saved_offset = self.offset
+      let start = self.offset
       let self.offset += 1
-      let [tag, attributes] = self.parse_tag(len)
-      " TODO: Perhaps move all this code to parse_tag?
-      if !g:NOW.Templates.placeholders.has(tag)
-        let self.offset = saved_offset
-        throw self.message('unrecognized element ‘%s’', tag)
-      endif
+      let [tag, attributes] = self.parse_tag(end)
       let placeholder = g:NOW.Templates.placeholders.lookup(tag)
-      let instance_attributes = {}
-      for attribute in attributes
-        if !has_key(placeholder.attributes, attribute.name)
-          throw self.positioned_message(attribute.lnum, attribute.offset,
-                                     \ 'illegal attribute ‘%s’ for placeholder ‘%s’',
-                                      \ attribute.name, placeholder.name)
-        endif
-        let instance_attributes[attribute.name] = attribute
-      endfor
-      for name in keys(placeholder.attributes)
-        if !has_key(instance_attributes, name)
-          let attribute = g:NOW.Templates.Attribute.new(-1, -1, name)
-          let attribute.value = placeholder.attributes[name]
-          let instance_attributes[name] = attribute
-        endif
-      endfor
-      let real_offset = self.offset
-      let self.offset = saved_offset
+      let instance_attributes = self.merge_attributes(attributes,
+                                                    \ placeholder.attributes,
+                                                    \ placeholder.name)
+      let saved_offset = self.offset
+      let self.offset = start
       let new .= placeholder.substitute(self, instance_attributes)
-      let self.offset = real_offset
+      let self.offset = saved_offset
     else
       let new .= self.get_char()
     endif
   endwhile
-  let lines = split(new, "\n", 1)
+  call self.update_line(new)
+end
+
+function NOW.Templates.Template.merge_attributes(attributes, defaults, name) dict
+  let instance_attributes = {}
+
+  for attribute in a:attributes
+    if !has_key(a:defaults, attribute.name)
+      throw self.positioned_message(attribute.lnum, attribute.offset,
+                                  \ 'illegal attribute ‘%s’ for placeholder ‘%s’',
+                                  \ attribute.name, a:name)
+    endif
+    let instance_attributes[attribute.name] = attribute
+  endfor
+
+  for name in keys(a:defaults)
+    if !has_key(a:attributes, name)
+      let attribute = g:NOW.Templates.Attribute.new(-1, -1, name)
+      let attribute.value = a:defaults[name]
+      let instance_attributes[name] = attribute
+    endif
+  endfor
+
+  return instance_attributes
+endfunction
+
+function NOW.Templates.Template.update_line(new) dict
+  let lines = split(a:new, "\n", 1)
   let last_line = lines[len(lines) - 1]
   let lines[len(lines) - 1] = last_line . strpart(self.line, self.offset)
   call setline(self.lnum, lines)
@@ -222,9 +231,12 @@ endfunction
 
 function NOW.Templates.Template.parse_tag(end) dict
   let start = self.offset
+
   let tag = matchstr(self.line, '^[[:alpha:]_][[:alnum:]._-]*', self.offset)
   if tag == ""
     throw self.message('invalid element name')
+  elseif !g:NOW.Templates.placeholders.has(tag)
+    throw self.message('unrecognized element ‘%s’', tag)
   endif
 
   let self.offset += strlen(tag)
