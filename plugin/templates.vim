@@ -92,18 +92,21 @@ function NOW.Templates.placeholders.lookup(element) dict
 endfunction
 
 function s:skip_while(pattern, ...)
-  let i = (a:0 > 0 ? a:1 : 1)
-  let n = (a:0 > 1 ? a:2 : line('$') + 1)
-  while i < n && getline(i) =~ a:pattern
-    let i += 1
-  endwhile
-  return i
-endfunctio
+  return call('s:skip_while_or_until', false, extend([a:pattern], a:000))
+endfunction
 
 function s:skip_until(pattern, ...)
+  return call('s:skip_while_or_until', true, extend([a:pattern], a:000))
+endfunction
+
+function s:skip_while_or_until(until, pattern, ...)
   let i = (a:0 > 0 ? a:1 : 1)
   let n = (a:0 > 1 ? a:2 : line('$') + 1)
-  while i < n && getline(i) !~ a:pattern
+  while i < n
+    let matched = getline(i) =~ a:pattern
+    if (until && matched) || (!until && !matched)
+      break
+    endif
     let i += 1
   endwhile
   return i
@@ -131,6 +134,7 @@ function NOW.Templates.Template.expand() dict
   let self.lnum = s:skip_until(s:borgval('now_templates_beginning_of_header_regex'),
                              \ self.lnum)
 
+  " TODO: Move this to a separate function called expand_lines().
   let end = s:borgval('now_templates_end_of_header_regex')
   let n = line('$') + 1
   let self.line = getline(self.lnum)
