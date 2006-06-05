@@ -178,7 +178,7 @@ function NOW.Templates.Template.expand_line() dict
   let new = ""
   while self.offset < end
     if self.line[self.offset] == '<'
-      let new .= self.expand_placeholder()
+      let new .= self.expand_placeholder(end)
     else
       let new .= self.get_char()
     endif
@@ -186,10 +186,10 @@ function NOW.Templates.Template.expand_line() dict
   call self.update_line(new)
 end
 
-function NOW.Templates.Template.expand_placeholder() dict
+function NOW.Templates.Template.expand_placeholder(a:end) dict
   let start = self.offset
   let self.offset += 1
-  let [tag, attributes] = self.parse_tag(end)
+  let [tag, attributes] = self.parse_tag(a:end)
   let placeholder = g:NOW.Templates.placeholders.lookup(tag)
   let instance_attributes = self.merge_attributes(attributes,
                                                 \ placeholder.attributes,
