@@ -54,7 +54,7 @@ function s:borgval(varname)
   elseif exists('g:' . a:varname)
     execute 'return ' . 'g:' . a:varname
   else
-    return ''
+    return ""
   end
 endfunction
 
@@ -277,21 +277,26 @@ endfunction
 function NOW.Templates.Template.get_char() dict
   if self.line[self.offset] == '&'
     self.offset += 1
-    " TODO: Use a regex here instead, as the name of the entity can only be \w
-    " or some suche.
-    let end = stridx(self.line, ';', self.offset)
-    if end == -1
-      throw self.message('unterminated character reference')
-    end
-
-    let entity = s:Entities.lookup(self, strpart(self.line, self.offset, end - self.offset))
-    let self.offset = end + 1
-    return entity
+    return self.parse_entity_reference()
   endif
 
   let c = self.line[self.offset]
   let self.offset += 1
   return c
+endfunction
+
+function NOW.Templates.Template.parse_entity_reference() dict
+  let end = matchend(self.line, '^[[:alpha:]_][[:alnum:]._-]*', self.offset)
+  if end == -1
+    throw self.message('character reference without a name')
+  elseif self.line[end] != ';'
+    throw self.message('‘;’ expected')
+  endif
+
+  let name = strpart(self.line, self.offset, end - self.offset)
+  let self.offset = end + 1
+
+  return g:NOW.Templates.Entities.lookup(self, name)
 endfunction
 
 let NOW.Templates.Attribute = {}
@@ -304,9 +309,9 @@ function NOW.Templates.Attribute.new(lnum, offset, name) dict
   return attribute
 endfunction
 
-let s:Entities = { 'lt': '<', 'gt': '>', 'amp': '&' }
+let NOW.Templates.Entities = { 'lt': '<', 'gt': '>', 'amp': '&' }
 
-function s:Entities.lookup(template, name) dict
+function NOW.Templates.Entities.lookup(template, name) dict
   if !has_key(self, a:name)
     throw a:template.message('unrecognized character reference ‘%s’', a:name)
   endif
@@ -314,33 +319,43 @@ function s:Entities.lookup(template, name) dict
   return self[a:name]
 endfunction
 
-" Format a format-string with directives.
-function s:format(template, placeholder, format)
-  let i = 0
-  let n = strlen(a:format.value)
-  let new = ""
-  while i < n
-    let c = a:format.value[i]
-    if c == '%'
-      let i += 1
-      if i == n
-        throw a:template.positioned_message(a:format.lnum, a:format.column + i,
-                                          \ 'unterminated format-directive')
-      endif
-      let c = a:format.value[i]
-      if c == '%'
-        let new .= '%'
-      else
-        let new .= a:placeholder.directive(a:template, a:format.lnum,
-                                         \ a:format.column + i, c)
-      endif
-    else
-      let new .= c
-    endif
-    let i += 1
-  endwhile
-  return new
+let NOW.Templates.Formatter = {}
+
+function NOW.Templates.Formatter.new(template, placeholder, format) dict
+  let formatter = deepcopy(self)
+  let formatter.template = a:template
+  let formatter.placeholder = a:placeholder
+  let formatter.format = a:format
 endfunction
+
+function NOW.Templates.Formatter.format() dict
+  let self.offset = 0
+  let self.end = strlen(self.format.value)
+  let new = ""
+  while self.offset < self.end
+    let new .= self.format_char(self.format.value[self.offset])
+    let self.offset += 1
+  endwhile
+endfunction
+
+function NOW.Templates.Formatter.format_char(c) dict
+  return (c == '%') ? self.format_directive() : c
+endfunction
+
+function NOW.Templates.Formatter.format_directive() dict
+  let self.offset += 1
+  if self.offset == self.end
+    throw self.template.positioned_message(self.format.lnum,
+                                         \ self.format.column + self.offset,
+                                         \ 'unterminated format-directive')
+  endif
+
+  let c = self.format.value[i]
+  return (c == '%') ?
+        \ '%' :
+        \ self.placeholder.directive(self.template, self.format.lnum,
+                                   \ self.format.column + self.offset, c)
+endif
 
 " TODO: I guess these should really be instantiated for every template.
 let s:FileDescriptionPlaceholder = {
@@ -349,7 +364,8 @@ let s:FileDescriptionPlaceholder = {
       \ }
 
 function s:FileDescriptionPlaceholder.substitute(template, attributes) dict
-  return s:format(a:template, self, a:attributes['format'])
+  return g:NOW.Templates.Formatter.new(a:template, self, a:attributes['format'])
+                                \ .format()
 endfunction
 
 function s:FileDescriptionPlaceholder.directive(template, lnum, column, directive) dict
@@ -374,7 +390,8 @@ let s:CopyrightPlaceholder = {
       \ }
 
 function s:CopyrightPlaceholder.substitute(template, attributes) dict
-  return s:format(a:template, self, a:attributes['format'])
+  return g:NOW.Templates.Formatter.new(a:template, self, a:attributes['format'])
+                                \ .format()
 endfunction
 
 function s:CopyrightPlaceholder.directive(template, lnum, column, directive) dict
