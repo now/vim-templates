@@ -121,14 +121,7 @@ function NOW.Templates.Template.new(file) dict
 endfunction
 
 function NOW.Templates.Template.expand() dict
-  " Read in the template.  Remove the last line if this is a new file, since it
-  " will be a remnant of the sole empty line from the new buffer.
-  let empty = (line('$') == 1 && getline('$') == "")
-  silent execute '0read' self.file
-  silent! '[,']foldopen!
-  if empty
-    silent $delete _
-  endif
+  call self.read_template_file()
 
   let skip = s:borgval('now_templates_skip_before_header_regex')
   if skip != ""
@@ -150,6 +143,19 @@ function NOW.Templates.Template.expand() dict
     let self.lnum += 1
     let self.line = getline(self.lnum)
   endwhile
+endfunction
+
+" Read in the template.  Remove the last line if this is a new file, since it
+" will be a remnant of the sole empty line from the new buffer.
+function NOW.Templates.Template.read_template_file() dict
+  let empty = (line('$') == 1 && getline('$') == "")
+
+  silent execute '0read' self.file
+  silent! '[,']foldopen!
+
+  if empty
+    silent $delete _
+  endif
 endfunction
 
 function NOW.Templates.Template.message(message, ...) dict
