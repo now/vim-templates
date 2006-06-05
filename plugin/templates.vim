@@ -178,10 +178,7 @@ function NOW.Templates.Template.expand_line() dict
   let new = ""
   while self.offset < len
     let c = self.line[self.offset]
-    if c == '&'
-      let c = self.get_char()
-      let new .= c
-    elseif c == '<'
+    if c == '<'
       let saved_offset = self.offset
       let self.offset += 1
       let [tag, attributes] = self.parse_tag(len)
@@ -211,10 +208,8 @@ function NOW.Templates.Template.expand_line() dict
       let self.offset = saved_offset
       let new .= placeholder.substitute(self, instance_attributes)
       let self.offset = real_offset
-"      let new .= placeholder.substitute(self.lnum, saved_offset, instance_attributes)
     else
-      let new .= c
-      let self.offset += 1
+      let new .= self.get_char()
     endif
   endwhile
   let lines = split(new, "\n", 1)
