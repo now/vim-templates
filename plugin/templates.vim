@@ -177,25 +177,29 @@ function NOW.Templates.Template.expand_line() dict
   let end = strlen(self.line)
   let new = ""
   while self.offset < end
-    let c = self.line[self.offset]
-    if c == '<'
-      let start = self.offset
-      let self.offset += 1
-      let [tag, attributes] = self.parse_tag(end)
-      let placeholder = g:NOW.Templates.placeholders.lookup(tag)
-      let instance_attributes = self.merge_attributes(attributes,
-                                                    \ placeholder.attributes,
-                                                    \ placeholder.name)
-      let saved_offset = self.offset
-      let self.offset = start
-      let new .= placeholder.substitute(self, instance_attributes)
-      let self.offset = saved_offset
+    if self.line[self.offset] == '<'
+      let new .= self.expand_placeholder()
     else
       let new .= self.get_char()
     endif
   endwhile
   call self.update_line(new)
 end
+
+function NOW.Templates.Template.expand_placeholder() dict
+  let start = self.offset
+  let self.offset += 1
+  let [tag, attributes] = self.parse_tag(end)
+  let placeholder = g:NOW.Templates.placeholders.lookup(tag)
+  let instance_attributes = self.merge_attributes(attributes,
+                                                \ placeholder.attributes,
+                                                \ placeholder.name)
+  let saved_offset = self.offset
+  let self.offset = start
+  let expansion = placeholder.expand(self, instance_attributes)
+  let self.offset = saved_offset
+  return expansion
+endfunction
 
 function NOW.Templates.Template.merge_attributes(attributes, defaults, name) dict
   let instance_attributes = {}
@@ -220,6 +224,8 @@ function NOW.Templates.Template.merge_attributes(attributes, defaults, name) dic
   return instance_attributes
 endfunction
 
+" TODO: should check that a:new isn’t equal to self.line, if it is, just skip
+" it.
 function NOW.Templates.Template.update_line(new) dict
   let lines = split(a:new, "\n", 1)
   let last_line = lines[len(lines) - 1]
@@ -407,7 +413,7 @@ let s:FileDescriptionPlaceholder = {
       \   'attributes': {'format': 'contents: %s'}
       \ }
 
-function s:FileDescriptionPlaceholder.substitute(template, attributes) dict
+function s:FileDescriptionPlaceholder.expand(template, attributes) dict
   return g:NOW.Templates.Formatter.new(a:template, self, a:attributes['format'])
                                 \ .format()
 endfunction
@@ -433,7 +439,7 @@ let s:CopyrightPlaceholder = {
       \   'attributes': {'format': 'Copyright © %Y %N'}
       \ }
 
-function s:CopyrightPlaceholder.substitute(template, attributes) dict
+function s:CopyrightPlaceholder.expand(template, attributes) dict
   return g:NOW.Templates.Formatter.new(a:template, self, a:attributes['format'])
                                 \ .format()
 endfunction
