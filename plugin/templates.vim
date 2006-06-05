@@ -92,11 +92,11 @@ function NOW.Templates.placeholders.lookup(element) dict
 endfunction
 
 function s:skip_while(pattern, ...)
-  return call('s:skip_while_or_until', false, extend([a:pattern], a:000))
+  return call('s:skip_while_or_until', extend([0, a:pattern], a:000))
 endfunction
 
 function s:skip_until(pattern, ...)
-  return call('s:skip_while_or_until', true, extend([a:pattern], a:000))
+  return call('s:skip_while_or_until', extend([1, a:pattern], a:000))
 endfunction
 
 function s:skip_while_or_until(until, pattern, ...)
@@ -104,7 +104,7 @@ function s:skip_while_or_until(until, pattern, ...)
   let n = (a:0 > 1 ? a:2 : line('$') + 1)
   while i < n
     let matched = getline(i) =~ a:pattern
-    if (until && matched) || (!until && !matched)
+    if (a:until && matched) || (!a:until && !matched)
       break
     endif
     let i += 1
@@ -166,8 +166,8 @@ function NOW.Templates.Template.message(message, ...) dict
 "  let message = a:0 > 0 ? call('printf', extend([a:message], a:000)) : a:message
 "  return printf("%s:%d:%d: %s\n%s\n%*s", self.file, self.lnum, self.offset + 1,
 "              \ message, self.line, self.offset + 1, '^')
-  call call(self.positioned_message,
-          \ extend([self.lnum, self.offset, a:message], a:000), self)
+  return call(self.positioned_message,
+            \ extend([self.lnum, self.offset, a:message], a:000), self)
 endfunction
 
 function NOW.Templates.Template.positioned_message(lnum, offset, message, ...) dict
@@ -188,9 +188,9 @@ function NOW.Templates.Template.expand_line() dict
     endif
   endwhile
   call self.update_line(new)
-end
+endfunction
 
-function NOW.Templates.Template.expand_placeholder(a:end) dict
+function NOW.Templates.Template.expand_placeholder(end) dict
   let start = self.offset
   let self.offset += 1
   let [tag, attributes] = self.parse_tag(a:end)
@@ -206,19 +206,18 @@ function NOW.Templates.Template.expand_placeholder(a:end) dict
 endfunction
 
 function NOW.Templates.Template.merge_attributes(attributes, defaults, name) dict
-  let instance_attributes = {}
-
-  for attribute in a:attributes
+  for attribute in values(a:attributes)
     if !has_key(a:defaults, attribute.name)
       throw self.positioned_message(attribute.lnum, attribute.offset,
                                   \ 'illegal attribute ‘%s’ for placeholder ‘%s’',
                                   \ attribute.name, a:name)
     endif
-    let instance_attributes[attribute.name] = attribute
   endfor
 
+  let instance_attributes = a:attributes
+
   for name in keys(a:defaults)
-    if !has_key(a:attributes, name)
+    if !has_key(instance_attributes, name)
       let attribute = g:NOW.Templates.Attribute.new(-1, -1, name)
       let attribute.value = a:defaults[name]
       let instance_attributes[name] = attribute
@@ -240,7 +239,7 @@ function NOW.Templates.Template.update_line(new) dict
 endfunction
 
 function NOW.Templates.Template.parse_tag(end) dict
-  let start = self.offset
+  let start = self.offset - 1
 
   let tag = matchstr(self.line, '^[[:alpha:]_][[:alnum:]._-]*', self.offset)
   if tag == ""
@@ -254,7 +253,7 @@ function NOW.Templates.Template.parse_tag(end) dict
 
   if self.offset >= a:end
     let self.offset = start
-    throw self.message('unterminated tag')
+    throw self.message('unterminated placeholder')
   endif
 
   if self.line[self.offset] != '>'
@@ -266,15 +265,18 @@ function NOW.Templates.Template.parse_tag(end) dict
 endfunction
 
 function NOW.Templates.Template.parse_attributes(limit) dict
-  let attributes = []
+  let attributes = {}
   let end = matchend(self.line, '^\s\+', self.offset)
   while end != -1
-    let self.offset += end
+    let self.offset = end
     if self.line[self.offset] == '>'
       break
     endif
-    " TODO: Verify that an attribute isn’t being duplicated.
-    call add(attributes, self.parse_attribute(a:limit))
+    let attribute = self.parse_attribute(a:limit)
+    if has_key(attributes, attribute.name)
+      throw self.message('attribute ‘%s’ redefined', attribute.name)
+    endif
+    let attributes[attribute.name] = attribute
     let end = matchend(self.line, '^\s\+', self.offset)
   endwhile
   return attributes
@@ -284,6 +286,7 @@ function NOW.Templates.Template.parse_attribute(limit) dict
   let attribute = self.parse_attribute_name()
   call self.skip_attribute_equals(a:limit)
   let attribute.value = self.parse_attribute_value(a:limit)
+  return attribute
 endfunction
 
 function NOW.Templates.Template.parse_attribute_name() dict
@@ -306,12 +309,12 @@ endfunction
 
 function NOW.Templates.Template.parse_attribute_value(limit) dict
   let start = self.offset
-  let delimiter = self.parse_attribute_value_delimiter(limit)
+  let delimiter = self.parse_attribute_value_delimiter(a:limit)
   let value = ""
   while self.offset < a:limit && self.line[self.offset] != delimiter
     let value .= self.get_char()
   endwhile
-  if self.offset == a:end
+  if self.offset == a:limit
     let self.offset = start
     throw self.message('unterminated attribute-value')
   endif
@@ -379,37 +382,39 @@ function NOW.Templates.Formatter.new(template, placeholder, format) dict
   let formatter = deepcopy(self)
   let formatter.template = a:template
   let formatter.placeholder = a:placeholder
-  let formatter.format = a:format
+  let formatter.fmt = a:format
+  return formatter
 endfunction
 
 function NOW.Templates.Formatter.format() dict
   let self.offset = 0
-  let self.end = strlen(self.format.value)
+  let self.end = strlen(self.fmt.value)
   let new = ""
   while self.offset < self.end
-    let new .= self.format_char(self.format.value[self.offset])
+    let new .= self.format_char(self.fmt.value[self.offset])
     let self.offset += 1
   endwhile
+  return new
 endfunction
 
 function NOW.Templates.Formatter.format_char(c) dict
-  return (c == '%') ? self.format_directive() : c
+  return (a:c == '%') ? self.format_directive() : a:c
 endfunction
 
 function NOW.Templates.Formatter.format_directive() dict
   let self.offset += 1
   if self.offset == self.end
-    throw self.template.positioned_message(self.format.lnum,
-                                         \ self.format.column + self.offset,
+    throw self.template.positioned_message(self.fmt.lnum,
+                                         \ self.fmt.offset + self.offset,
                                          \ 'unterminated format-directive')
   endif
 
-  let c = self.format.value[i]
+  let c = self.fmt.value[self.offset]
   return (c == '%') ?
         \ '%' :
-        \ self.placeholder.directive(self.template, self.format.lnum,
-                                   \ self.format.column + self.offset, c)
-endif
+        \ self.placeholder.directive(self.template, self.fmt.lnum,
+                                   \ self.fmt.offset + self.offset, c)
+endfunction
 
 " TODO: I guess these should really be instantiated for every template.
 let s:FileDescriptionPlaceholder = {
@@ -419,10 +424,10 @@ let s:FileDescriptionPlaceholder = {
 
 function s:FileDescriptionPlaceholder.expand(template, attributes) dict
   return g:NOW.Templates.Formatter.new(a:template, self, a:attributes['format'])
-                                \ .format()
+                                 \.format()
 endfunction
 
-function s:FileDescriptionPlaceholder.directive(template, lnum, column, directive) dict
+function s:FileDescriptionPlaceholder.directive(template, lnum, offset, directive) dict
   if a:directive == 's'
     return s:try_input('Contents of this file: ', "")
   elseif a:directive == 'f'
@@ -430,7 +435,7 @@ function s:FileDescriptionPlaceholder.directive(template, lnum, column, directiv
   elseif a:directive == 'F'
     return expand('%')
   else
-    throw a:template.positioned_message(a:lnum, a:column,
+    throw a:template.positioned_message(a:lnum, a:offset,
                                       \ 'unrecognized directive ‘%s’',
                                       \ a:directive)
   end
@@ -445,10 +450,10 @@ let s:CopyrightPlaceholder = {
 
 function s:CopyrightPlaceholder.expand(template, attributes) dict
   return g:NOW.Templates.Formatter.new(a:template, self, a:attributes['format'])
-                                \ .format()
+                                 \.format()
 endfunction
 
-function s:CopyrightPlaceholder.directive(template, lnum, column, directive) dict
+function s:CopyrightPlaceholder.directive(template, lnum, offset, directive) dict
   if a:directive == 'N'
     return g:pcp_plugins_username
   else
@@ -489,7 +494,7 @@ function s:template(...)
   let template = g:NOW.Templates.Template.new(template_file)
   try
     call template.expand()
-  catch
+  catch /^\%(Vim\)\@!/
     echohl ErrorMsg
     echo v:exception
     echohl None
