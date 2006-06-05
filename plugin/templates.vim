@@ -221,58 +221,89 @@ function NOW.Templates.Template.expand_line() dict
 endfunction
 
 function NOW.Templates.Template.parse_tag(end) dict
+  let start = self.offset
   let tag = matchstr(self.line, '^[[:alpha:]_][[:alnum:]._-]*', self.offset)
   if tag == ""
     throw self.message('invalid element name')
   endif
-  let attributes =[]
-  " TODO: Only update self.offset on successful parses and turn saved_offset
-  " into the iterator (and call it offset, or something).
-  let saved_offset = self.offset + len(tag)
-  let self.offset = matchend(self.line, '^\s\+', saved_offset)
-  while self.offset != -1
-    let saved_offset = self.offset
-    if self.line[self.offset] == '>'
-      break
-    endif
-    let name = matchstr(self.line, '^[[:alpha:]_][[:alnum:]._-]*', self.offset)
-    let attribute = g:NOW.Templates.Attribute.new(self.lnum, self.offset, name)
-    let offset = matchend(self.line, '^\s*=\s*', self.offset + strlen(name))
-    if offset == -1 || offset == a:end
-      throw self.message('attribute without value')
-    endif
-    let self.offset = offset
-    let delimiter = self.line[self.offset]
-    if delimiter != '"' && delimiter != "'"
-      throw self.message('expected ‘"’ or ‘''’')
-    endif
-    let saved_offset = self.offset
-    let self.offset += strlen(delimiter)
-    let value = ""
-    while self.offset < a:end && self.line[self.offset] != delimiter
-      let c = self.get_char()
-      let value .= c
-    endwhile
-    if self.offset == a:end
-      let self.offset = saved_offset
-      throw self.message('unterminated attribute-value')
-    endif
-    let attribute.value = value
-    " TODO: Should check for duplicate attributes, and this should be a hash
-    " after all.
-    call add(attributes, attribute)
-    let saved_offset = self.offset + 1
-    let self.offset = matchend(self.line, '^\s\+', saved_offset)
-  endwhile
-  let self.offset = saved_offset
+
+  let self.offset += strlen(tag)
+  let attributes = self.parse_attributes(a:end)
+
   if self.offset >= a:end
+    let self.offset = start
     throw self.message('unterminated tag')
   endif
+
   if self.line[self.offset] != '>'
     throw self.message('expected ‘>’ but got ‘%s’', self.line[self.offset])
   endif
   let self.offset += 1
+
   return [tag, attributes]
+endfunction
+
+function NOW.Templates.Template.parse_attributes(limit) dict
+  let attributes = []
+  let end = matchend(self.line, '^\s\+', self.offset)
+  while end != -1
+    let self.offset += end
+    if self.line[self.offset] == '>'
+      break
+    endif
+    " TODO: Verify that an attribute isn’t being duplicated.
+    call add(attributes, self.parse_attribute(a:limit))
+    let end = matchend(self.line, '^\s\+', self.offset)
+  endwhile
+  return attributes
+endfunction
+
+function NOW.Templates.Template.parse_attribute(limit) dict
+  let attribute = self.parse_attribute_name()
+  call self.skip_attribute_equals(a:limit)
+  let attribute.value = self.parse_attribute_value(a:limit)
+endfunction
+
+function NOW.Templates.Template.parse_attribute_name() dict
+  let name = matchstr(self.line, '^[[:alpha:]_][[:alnum:]._-]*', self.offset)
+  if name == ""
+    throw self.message('invalid attribute name')
+  endif
+  let attribute = g:NOW.Templates.Attribute.new(self.lnum, self.offset, name)
+  let self.offset += strlen(name)
+  return attribute
+endfunction
+
+function NOW.Templates.Template.skip_attribute_equals(limit) dict
+  let end = matchend(self.line, '^\s*=\s*', self.offset)
+  if end == -1 || end == a:limit || self.offset == a:limit
+    throw self.message('attribute without value')
+  endif
+  let self.offset = end
+endfunction
+
+function NOW.Templates.Template.parse_attribute_value(limit) dict
+  let start = self.offset
+  let delimiter = self.parse_attribute_value_delimiter(limit)
+  let value = ""
+  while self.offset < a:limit && self.line[self.offset] != delimiter
+    let value .= self.get_char()
+  endwhile
+  if self.offset == a:end
+    let self.offset = start
+    throw self.message('unterminated attribute-value')
+  endif
+  let self.offset += strlen(delimiter)
+  return value
+endfunction
+
+function NOW.Templates.Template.parse_attribute_value_delimiter(limit) dict
+  let delimiter = self.line[self.offset]
+  if delimiter != '"' && delimiter != "'"
+    throw self.message('expected ‘"’ or ‘''’')
+  endif
+  let self.offset += strlen(delimiter)
+  return delimiter
 endfunction
 
 function NOW.Templates.Template.get_char() dict
