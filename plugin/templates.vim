@@ -540,7 +540,8 @@ function s:template(...)
     if template_file == ""
       return
     endif
-    call g:NOW.Templates.Template.new(template_file).expand()
+    let template = g:NOW.Templates.Template.new(template_file)
+    call template.expand()
   catch /^\%(Vim\)\@!/
     echohl ErrorMsg
     echo v:exception
@@ -567,6 +568,58 @@ function s:position_cursor_at_end_of_template()
   call cursor(i + 1, 0)
 endfunction
 
+let NOW.Templates.UpdatableHeaderlines = {'updaters': []}
+
+function NOW.Templates.UpdatableHeaderlines.register(updater) dict
+  call add(self.updaters, a:updater)
+endfunction
+
+function NOW.Templates.UpdatableHeaderlines.update() dict
+  let lnum = 1
+
+  let skip = s:borgval('now_templates_skip_before_header_regex')
+  if skip != ""
+    let lnum = s:skip_while(skip, lnum)
+  endif
+
+  let lnum = s:skip_until(s:borgval('now_templates_beginning_of_header_regex'), lnum)
+
+  let end = s:borgval('now_templates_end_of_header_regex')
+  let line = getline(lnum)
+  while lnum < line('$') + 1 && line !~ end
+    call self.update_line(line, lnum)
+    let lnum += 1
+    let line = getline(lnum)
+  endwhile
+endfunction
+
+function NOW.Templates.UpdatableHeaderlines.update_line(line, lnum) dict
+  for updater in self.updaters
+    let matches = matchlist(a:line, updater.pattern)
+    if len(matches) == 0
+      continue
+    endif
+    let new = updater.update(a:line, a:lnum, matches)
+    if new == a:line
+      continue
+    endif
+    call setline(a:lnum, new)
+  endfor
+endfunction
+
+let NOW.Templates.LatestRevisionUpdater = {
+      \ 'pattern': '^\(.\{1,3}\<Latest Revision\>\s*:\s*\).*$',
+      \ 'time_format': '%Y-%m-%d'
+      \ }
+
+function NOW.Templates.LatestRevisionUpdater.update(line, lnum, matches) dict
+  return printf("%s%s", a:matches[1],
+              \ strftime(s:borgval('now_templates_latest_revision_time_format',
+                       \ self.time_format)))
+endfunction
+
+call NOW.Templates.UpdatableHeaderlines.register(NOW.Templates.LatestRevisionUpdater)
+
 if !exists('g:now_templates_author_regex')
   let g:now_templates_author_regex = '^\(.\{1,3}\<Author\>\s*:\s*\).*$'
 endif
@@ -575,32 +628,23 @@ if !exists('g:now_templates_url_regex')
   let g:now_templates_url_regex = '^\(.\{1,3}\<URL\>\s*:\s*\).*$'
 endif
 
-if !exists('g:now_templates_revised_on_regex')
-  let g:now_templates_revised_on_regex = 
-	\'^\(.\{1,3}\<Latest Revision\>\s*:\s*\).*$'
-endif
-
-" called by autocmd above.
+" Called by autocmd above.
 function s:header_update()
-  " if we don't have a template for this kind of file, don't update it.
-  if !filereadable(s:join_filenames(expand(g:now_templates_template_path), 
-        \ 
-	\'template.' . &ft))
+  " If we don't have a template for this kind of file, don't update it.
+  if s:find_template_file(&ft, 0) == ""
     return
   endif
 
-  " don't update headers for files in template directory.
+  " Don't update headers for files in template directory.
   if expand("%:p:h") . '/' == expand(g:now_templates_template_path)
     return
   endif
 
-  " only update if necessary
-  let lnum = s:find_hline(s:borgval('now_templates_revised_on_regex'))
-  let line = getline(lnum)
-  let newline = substitute(line,
-	\s:borgval('now_templates_revised_on_regex'),
-	\'\1' . strftime(g:pcp_plugins_dateformat), '')
-  if line != newline
-    call setline(lnum, newline)
-  endif
+  try
+    call g:NOW.Templates.UpdatableHeaderlines.update()
+  catch /^\%(Vim\)\@!/
+    echohl ErrorMsg
+    echo v:exception
+    echohl None
+  endtry
 endfunction
