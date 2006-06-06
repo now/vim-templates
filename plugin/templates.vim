@@ -495,12 +495,11 @@ function s:LicensePlaceholder.expand(template, attributes) dict
   if len(contents) == 0
     return ""
   endif
-  let new = [self.cleanup(remove(contents, 0))]
-  for line in contents
-    call add(new, prefix . self.cleanup(line))
-  endfor
+  let first_line = self.cleanup(remove(contents, 0))
+  let contents = map(contents, 'self.cleanup(prefix . v:val)')
+  call insert(contents, first_line)
 
-  return join(new, "\n")
+  return join(contents, "\n")
 endfunction
 
 function s:LicensePlaceholder.cleanup(line) dict
