@@ -19,7 +19,7 @@ command! -nargs=? Template call s:template(<f-args>)
 
 augroup templates
   autocmd BufNewFile		    * call s:template(&ft, expand('<afile>:t'))
-  autocmd BufWritePre,FileWritePre  * call s:header_update()
+  autocmd BufWritePre,FileWritePre  * call s:update_updatable_headerlines()
 augroup end
 
 " Setup reasonable defaults for our needed GLOBAL values.
@@ -628,7 +628,7 @@ if !exists('g:now_templates_url_regex')
 endif
 
 " Called by autocmd above.
-function s:header_update()
+function s:update_updatable_headerlines()
   " If we don't have a template for this kind of file, don't update it.
   if s:find_template_file(&ft, 0) == ""
     return
