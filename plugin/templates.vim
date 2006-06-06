@@ -514,9 +514,20 @@ function s:join_filenames(head, tail)
   return a:head . (a:head =~ '/$' ? "" : '/') . a:tail
 endfunction
 
-function s:find_template_file(ft)
-  return s:join_filenames(expand(g:now_templates_template_path),
-                        \ a:ft . '.template')
+function s:find_template_file(ft, interactive)
+  let template_file = s:join_filenames(expand(g:now_templates_template_path),
+                                     \ a:ft . '.template')
+
+  " If we weren’t able to find a template, then depending on if we were called
+  " from an autocmd or not, either simply return, or report an error.
+  if !filereadable(template_file)
+    if a:interactive
+      throw printf('Unable to find template file for filetype ‘%s’', ft)
+    endif
+    return ""
+  endif
+
+  return template_file
 endfunction
 
 " Called by autocmd above and Template command.
@@ -524,30 +535,26 @@ function s:template(...)
   " Get the 'filetype' of the file we want to find a template for.
   let ft = (a:0 > 0) ? a:1 : &ft
 
-  let template_file = s:find_template_file(ft)
-
-  " If we weren’t able to find a template, then depending on if we were called
-  " from an autocmd or not, either simply return, or report an error.
-  if !filereadable(template_file)
-    if a:0 < 2
-      echohl ErrorMsg
-      echo printf('Unable to find template file for filetype ‘%s’', ft)
-      echohl None
-    endif
-    return
-  endif
-
-  let template = g:NOW.Templates.Template.new(template_file)
   try
-    call template.expand()
+    let template_file = s:find_template_file(ft, a:0 < 2)
+    if template_file == ""
+      return
+    endif
+    call g:NOW.Templates.Template.new(template_file).expand()
   catch /^\%(Vim\)\@!/
     echohl ErrorMsg
     echo v:exception
     echohl None
   endtry
 
+  call s:position_cursor_at_end_of_template()
 
-  " Move the cursor to the end of the template.
+  " Mark the buffer as modified.
+  set modified
+endfunction
+
+" Move the cursor to the end of the template.
+function s:position_cursor_at_end_of_template()
   let i = 1
 
   let skip = s:borgval('now_templates_skip_before_header_regex')
@@ -558,9 +565,6 @@ function s:template(...)
   let i = s:skip_until(s:borgval('now_templates_beginning_of_header_regex'), i)
   let i = s:skip_until(s:borgval('now_templates_end_of_header_regex'), i)
   call cursor(i + 1, 0)
-
-  " Mark the buffer as modified.
-  set modified
 endfunction
 
 if !exists('g:now_templates_author_regex')
