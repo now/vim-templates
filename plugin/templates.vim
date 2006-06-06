@@ -635,7 +635,12 @@ function s:header_update()
   endif
 
   " Don't update headers for files in template directory.
-  if expand("%:p:h") . '/' == expand(g:now_templates_template_path)
+  let path = expand('%:p:h')
+  let template_path = expand(g:now_templates_template_path)
+  if template_path =~ '/$'
+    let path .= '/'
+  endif
+  if path == template_path
     return
   endif
 
