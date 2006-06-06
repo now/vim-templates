@@ -495,12 +495,16 @@ function s:LicensePlaceholder.expand(template, attributes) dict
   if len(contents) == 0
     return ""
   endif
-  let new = [substitute(remove(contents, 0), '\s\+$', "", "")]
+  let new = [self.cleanup(remove(contents, 0))]
   for line in contents
-    call add(new, prefix . substitute(line, '\s\+$', "", ""))
+    call add(new, prefix . self.cleanup(line))
   endfor
 
   return join(new, "\n")
+endfunction
+
+function s:LicensePlaceholder.cleanup(line) dict
+  return substitute(a:line, '\s\+$', "", "")
 endfunction
 
 call NOW.Templates.placeholders.register(s:LicensePlaceholder)
@@ -559,10 +563,6 @@ function s:template(...)
   set modified
 endfunction
 
-if !exists('g:now_templates_license_regex')
-  let g:now_templates_license_regex = '<License>'
-endif
-
 if !exists('g:now_templates_author_regex')
   let g:now_templates_author_regex = '^\(.\{1,3}\<Author\>\s*:\s*\).*$'
 endif
@@ -600,23 +600,3 @@ function s:header_update()
     call setline(lnum, newline)
   endif
 endfunction
-
-
-"  let licensefile = s:borgval('now_templates_license')
-"  " and license statements.
-"  let licensefile = s:join_filenames(expand(g:now_templates_template_path),
-"	\licensefile.'.LICENSE')
-"  if filereadable(licensefile)
-"    let lnum = s:find_hline(g:now_templates_license_regex)
-"    if lnum != 0
-"      let prefix = substitute(getline(lnum),
-"	    \'^\(.\{-}\)' . g:now_templates_license_regex, '\1', '')
-"      silent execute lnum . 'read ' . licensefile
-"      silent execute "'[,']s/^/".prefix."/e"
-"      '[,']s/\s\+$//e
-"      silent execute lnum . 'delete _'
-"    endif
-"  else
-"    call s:update_hline(g:now_templates_license_regex,
-"	  \'see the COPYING file for license information.')
-"  endif
