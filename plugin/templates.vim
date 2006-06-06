@@ -48,13 +48,14 @@ endif
 
 " Find a variable 'varname' in the bufferlocal namespace or in the global
 " namespace.
-function s:borgval(varname)
+function s:borgval(varname, ...)
+  let default = a:0 > 0 ? a:1 : ""
   if exists('b:' . a:varname)
     execute 'return ' . 'b:' . a:varname
   elseif exists('g:' . a:varname)
     execute 'return ' . 'g:' . a:varname
   else
-    return ""
+    return default
   end
 endfunction
 
@@ -136,9 +137,8 @@ function NOW.Templates.Template.expand() dict
 
   " TODO: Move this to a separate function called expand_lines().
   let end = s:borgval('now_templates_end_of_header_regex')
-  let n = line('$') + 1
   let self.line = getline(self.lnum)
-  while self.lnum < n && self.line !~ end
+  while self.lnum < line('$') + 1 && self.line !~ end
     try
       call self.expand_line()
     catch /^abort substitution$/
@@ -233,8 +233,13 @@ function NOW.Templates.Template.update_line(new) dict
   let lines = split(a:new, "\n", 1)
   let last_line = lines[len(lines) - 1]
   let lines[len(lines) - 1] = last_line . strpart(self.line, self.offset)
-  call setline(self.lnum, lines)
-  let self.lnum += len(lines) - 1
+  call setline(self.lnum, lines[0])
+  if len(lines) > 1
+    call remove(lines, 0)
+    call append(self.lnum, lines)
+    let self.lnum += len(lines)
+  endif
+
   let self.offset = len(last_line)
 endfunction
 
@@ -462,6 +467,43 @@ function s:CopyrightPlaceholder.directive(template, lnum, offset, directive) dic
 endfunction
 
 call NOW.Templates.placeholders.register(s:CopyrightPlaceholder)
+
+let s:LicensePlaceholder = {
+      \   'name': 'license',
+      \   'attributes': {'name': "", 'file': ""}
+      \ }
+
+function s:LicensePlaceholder.expand(template, attributes) dict
+  let file = a:attributes['file'].value
+  if file == ""
+    if a:attributes['name'].value == ""
+      let a:attributes['name'].value = s:borgval('now_templates_license', 'GPL')
+    endif
+    let file = s:join_filenames(expand(g:now_templates_template_path),
+                              \ a:attributes['name'].value . '.license')
+  endif
+
+  if !filereadable(file)
+    " TODO: should really be positioned over the start of the placeholder
+    throw a:template.message('can’t find license file ‘%s’', file)
+  endif
+
+  " TODO: We really need to instantiate placeholders with the proper
+  " information about where they are.  This works, but is a bit of a hack.
+  let prefix = strpart(a:template.line, 0, a:template.offset)
+  let contents = readfile(file)
+  if len(contents) == 0
+    return ""
+  endif
+  let new = [substitute(remove(contents, 0), '\s\+$', "", "")]
+  for line in contents
+    call add(new, prefix . substitute(line, '\s\+$', "", ""))
+  endfor
+
+  return join(new, "\n")
+endfunction
+
+call NOW.Templates.placeholders.register(s:LicensePlaceholder)
 
 " Join file components, checking for separators and adding as necessary.
 function s:join_filenames(head, tail)
