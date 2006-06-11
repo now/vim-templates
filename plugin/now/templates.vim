@@ -485,6 +485,28 @@ endfunction
 
 call NOW.Templates.placeholders.register(s:LicensePlaceholder)
 
+let s:NamePlaceholder = {
+      \   'name': 'name',
+      \   'attributes': {'format': '%N'}
+      \ }
+
+function s:NamePlaceholder.expand(template, attributes) dict
+  return g:NOW.Templates.Formatter.new(a:template, self, a:attributes['format'])
+                                 \.format()
+endfunction
+
+function s:NamePlaceholder.directive(template, lnum, offset, directive) dict
+  if a:directive == 'N'
+    return g:NOW.System.User.email_address()
+  else
+    throw a:template.positioned_message(a:lnum, a:offset,
+                                      \ 'unrecognized directive ‘%s’',
+                                      \ a:directive)
+  end
+endfunction
+
+call NOW.Templates.placeholders.register(s:NamePlaceholder)
+
 " Join file components, checking for separators and adding as necessary.
 function s:join_filenames(head, tail)
   return a:head . (a:head =~ '/$' ? "" : '/') . a:tail
