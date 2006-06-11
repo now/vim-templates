@@ -1,19 +1,18 @@
 " Vim plugin file
 " Maintainer:	    Nikolai Weibull <now@bitwi.se>
-" Latest Revision:  2006-05-25
-" Dependencies:
-"   plugin/pcplib.vim
+" Latest Revision:  2006-06-11
 
 if exists('loaded_now_templates')
   finish
 endif
 let loaded_now_templates = 1
 
-if !exists('NOW')
-  let NOW = {}
-endif
-
-let NOW.Templates = {}
+runtime lib/now.vim
+runtime lib/now/system.vim
+runtime lib/now/system/network.vim
+runtime lib/now/system/passwd.vim
+runtime lib/now/system/user.vim
+runtime lib/now/vim.vim
 
 command! -nargs=? Template call s:template(<f-args>)
 
@@ -46,26 +45,6 @@ if !exists('g:now_templates_end_of_header_regex')
   let g:now_templates_end_of_header_regex = '^\s*$'
 endif
 
-" Find a variable 'varname' in the bufferlocal namespace or in the global
-" namespace.
-function s:borgval(varname, ...)
-  let default = a:0 > 0 ? a:1 : ""
-  if exists('b:' . a:varname)
-    execute 'return ' . 'b:' . a:varname
-  elseif exists('g:' . a:varname)
-    execute 'return ' . 'g:' . a:varname
-  else
-    return default
-  end
-endfunction
-
-" Generate an error message that can be thrown to the user.
-function s:message(file, line, lnum, offset, message, ...)
-  let message = a:0 > 0 ? call('printf', extend([a:message], a:000)) : a:message
-  return printf("%s:%d:%d: %s\n%s\n%*s", a:file, a:lnum, a:offset + 1,
-              \ message, a:line, a:offset + 1, '^')
-endfunction
-
 " Try to get some input from the user.  If the user is uninterested, throw an
 " error that can be caught further up to exit the substitution of placeholders.
 function s:try_input(prompt, text)
@@ -77,6 +56,7 @@ function s:try_input(prompt, text)
   end
 endfunction
 
+let NOW.Templates = {}
 
 let NOW.Templates.placeholders = { 'placeholders': {} }
 
@@ -127,16 +107,16 @@ endfunction
 function NOW.Templates.Template.expand() dict
   call self.read_template_file()
 
-  let skip = s:borgval('now_templates_skip_before_header_regex')
+  let skip = g:NOW.Vim.b_or_g('now_templates_skip_before_header_regex')
   if skip != ""
     let self.lnum = s:skip_while(skip, self.lnum)
   endif
 
-  let self.lnum = s:skip_until(s:borgval('now_templates_beginning_of_header_regex'),
+  let self.lnum = s:skip_until(g:NOW.Vim.b_or_g('now_templates_beginning_of_header_regex'),
                              \ self.lnum)
 
   " TODO: Move this to a separate function called expand_lines().
-  let end = s:borgval('now_templates_end_of_header_regex')
+  let end = g:NOW.Vim.b_or_g('now_templates_end_of_header_regex')
   let self.line = getline(self.lnum)
   while self.lnum < line('$') + 1 && self.line !~ end
     try
@@ -163,9 +143,6 @@ function NOW.Templates.Template.read_template_file() dict
 endfunction
 
 function NOW.Templates.Template.message(message, ...) dict
-"  let message = a:0 > 0 ? call('printf', extend([a:message], a:000)) : a:message
-"  return printf("%s:%d:%d: %s\n%s\n%*s", self.file, self.lnum, self.offset + 1,
-"              \ message, self.line, self.offset + 1, '^')
   return call(self.positioned_message,
             \ extend([self.lnum, self.offset, a:message], a:000), self)
 endfunction
@@ -460,7 +437,7 @@ endfunction
 
 function s:CopyrightPlaceholder.directive(template, lnum, offset, directive) dict
   if a:directive == 'N'
-    return g:pcp_plugins_username
+    return g:NOW.System.User.email_address()
   else
     return strftime('%' . a:directive)
   end
@@ -477,7 +454,7 @@ function s:LicensePlaceholder.expand(template, attributes) dict
   let file = a:attributes['file'].value
   if file == ""
     if a:attributes['name'].value == ""
-      let a:attributes['name'].value = s:borgval('now_templates_license', 'GPL')
+      let a:attributes['name'].value = g:NOW.Vim.b_or_g('now_templates_license', 'GPL')
     endif
     let file = s:join_filenames(expand(g:now_templates_template_path),
                               \ a:attributes['name'].value . '.license')
@@ -557,13 +534,13 @@ endfunction
 function s:position_cursor_at_end_of_template()
   let i = 1
 
-  let skip = s:borgval('now_templates_skip_before_header_regex')
+  let skip = g:NOW.Vim.b_or_g('now_templates_skip_before_header_regex')
   if skip != ""
     let i = s:skip_while(skip, i)
   endif
 
-  let i = s:skip_until(s:borgval('now_templates_beginning_of_header_regex'), i)
-  let i = s:skip_until(s:borgval('now_templates_end_of_header_regex'), i)
+  let i = s:skip_until(g:NOW.Vim.b_or_g('now_templates_beginning_of_header_regex'), i)
+  let i = s:skip_until(g:NOW.Vim.b_or_g('now_templates_end_of_header_regex'), i)
   call cursor(i + 1, 0)
 endfunction
 
@@ -576,14 +553,14 @@ endfunction
 function NOW.Templates.UpdatableHeaderlines.update() dict
   let lnum = 1
 
-  let skip = s:borgval('now_templates_skip_before_header_regex')
+  let skip = g:NOW.Vim.b_or_g('now_templates_skip_before_header_regex')
   if skip != ""
     let lnum = s:skip_while(skip, lnum)
   endif
 
-  let lnum = s:skip_until(s:borgval('now_templates_beginning_of_header_regex'), lnum)
+  let lnum = s:skip_until(g:NOW.Vim.b_or_g('now_templates_beginning_of_header_regex'), lnum)
 
-  let end = s:borgval('now_templates_end_of_header_regex')
+  let end = g:NOW.Vim.b_or_g('now_templates_end_of_header_regex')
   let line = getline(lnum)
   while lnum < line('$') + 1 && line !~ end
     call self.update_line(line, lnum)
@@ -613,19 +590,11 @@ let NOW.Templates.LatestRevisionUpdater = {
 
 function NOW.Templates.LatestRevisionUpdater.update(line, lnum, matches) dict
   return printf("%s%s", a:matches[1],
-              \ strftime(s:borgval('now_templates_latest_revision_time_format',
-                       \ self.time_format)))
+              \ strftime(g:NOW.Vim.b_or_g('now_templates_latest_revision_time_format',
+                                        \ self.time_format)))
 endfunction
 
 call NOW.Templates.UpdatableHeaderlines.register(NOW.Templates.LatestRevisionUpdater)
-
-if !exists('g:now_templates_author_regex')
-  let g:now_templates_author_regex = '^\(.\{1,3}\<Author\>\s*:\s*\).*$'
-endif
-
-if !exists('g:now_templates_url_regex')
-  let g:now_templates_url_regex = '^\(.\{1,3}\<URL\>\s*:\s*\).*$'
-endif
 
 " Called by autocmd above.
 function s:update_updatable_headerlines()
@@ -652,3 +621,11 @@ function s:update_updatable_headerlines()
     echohl None
   endtry
 endfunction
+
+if !exists('g:now_templates_author_regex')
+  let g:now_templates_author_regex = '^\(.\{1,3}\<Author\>\s*:\s*\).*$'
+endif
+
+if !exists('g:now_templates_url_regex')
+  let g:now_templates_url_regex = '^\(.\{1,3}\<URL\>\s*:\s*\).*$'
+endif
