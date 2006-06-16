@@ -1,11 +1,14 @@
 " Vim library file
 " Maintainer:       Nikolai Weibull <now@bitwi.se>
-" Latest Revision:  2006-06-12
+" Latest Revision:  2006-06-16
 
 if exists('loaded_lib_now_templates_updatableheaderlines')
   finish
 endif
 let loaded_lib_now_templates_updatableheaderlines = 1
+
+let s:cpo_save = &cpo
+set cpo&vim
 
 let NOW.Templates.UpdatableHeaderlines = {'updaters': []}
 
@@ -44,3 +47,5 @@ function NOW.Templates.UpdatableHeaderlines.update_line(line, lnum) dict
   endfor
   return 1
 endfunction
+
+let &cpo = s:cpo_save

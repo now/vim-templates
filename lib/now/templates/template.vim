@@ -1,11 +1,14 @@
 " Vim library file
 " Maintainer:       Nikolai Weibull <now@bitwi.se>
-" Latest Revision:  2006-06-12
+" Latest Revision:  2006-06-16
 
 if exists('loaded_lib_now_templates_template')
   finish
 endif
 let loaded_lib_now_templates_template = 1
+
+let s:cpo_save = &cpo
+set cpo&vim
 
 let NOW.Templates.Template = {}
 
@@ -250,3 +253,5 @@ function NOW.Templates.Template.parse_entity_reference() dict
 
   return g:NOW.Templates.Entities.lookup(self, name)
 endfunction
+
+let &cpo = s:cpo_save

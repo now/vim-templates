@@ -1,11 +1,14 @@
 " Vim library file
 " Maintainer:	    Nikolai Weibull <now@bitwi.se>
-" Latest Revision:  2006-06-12
+" Latest Revision:  2006-06-16
 
 if exists('loaded_lib_now_templates_formatter')
   finish
 endif
 let loaded_lib_now_templates_formatter = 1
+
+let s:cpo_save = &cpo
+set cpo&vim
 
 let NOW.Templates.Formatter = {}
 
@@ -46,3 +49,5 @@ function NOW.Templates.Formatter.format_directive() dict
         \ self.placeholder.directive(self.template, self.fmt.lnum,
                                    \ self.fmt.offset + self.offset, c)
 endfunction
+
+let &cpo = s:cpo_save

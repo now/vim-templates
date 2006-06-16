@@ -1,11 +1,14 @@
 " Vim plugin file
 " Maintainer:	    Nikolai Weibull <now@bitwi.se>
-" Latest Revision:  2006-06-12
+" Latest Revision:  2006-06-16
 
 if exists('loaded_plugin_now_templates')
   finish
 endif
 let loaded_plugin_now_templates = 1
+
+let s:cpo_save = &cpo
+set cpo&vim
 
 runtime lib/now.vim
 runtime lib/now/file.vim
@@ -274,3 +277,5 @@ function s:update_updatable_headerlines()
     echohl None
   endtry
 endfunction
+
+let &cpo = s:cpo_save
