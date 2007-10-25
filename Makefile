@@ -13,22 +13,21 @@ ifeq ($(uname_O),Cygwin)
 endif
 
 DIRS = \
-       lib \
-       lib/now \
-       lib/now/templates \
+       autoload \
+       autoload/now \
+       autoload/now/template \
        plugin \
        plugin/now
 
 doc_FILES =
 
 lib_FILES = \
-	    lib/now.vim \
-	    lib/now/templates.vim \
-	    lib/now/templates/attribute.vim \
-	    lib/now/templates/entities.vim \
-	    lib/now/templates/formatter.vim \
-	    lib/now/templates/template.vim \
-	    lib/now/templates/updatableheaderlines.vim
+	    autoload/now/template.vim \
+	    autoload/now/template/attribute.vim \
+	    autoload/now/template/entities.vim \
+	    autoload/now/template/formatter.vim \
+	    autoload/now/template/placeholders.vim \
+	    autoload/now/template/updatableheaderlines.vim
 
 plugin_FILES = \
 	       plugin/now/templates.vim

@@ -1,6 +1,6 @@
 " Vim plugin file
 " Maintainer:	    Nikolai Weibull <now@bitwi.se>
-" Latest Revision:  2006-06-16
+" Latest Revision:  2007-09-20
 
 if exists('loaded_plugin_now_templates')
   finish
@@ -10,25 +10,10 @@ let loaded_plugin_now_templates = 1
 let s:cpo_save = &cpo
 set cpo&vim
 
-runtime lib/now.vim
-runtime lib/now/file.vim
-runtime lib/now/system.vim
-runtime lib/now/system/network.vim
-runtime lib/now/system/passwd.vim
-runtime lib/now/system/user.vim
-runtime lib/now/vim.vim
-runtime lib/now/vim/motion.vim
-runtime lib/now/templates.vim
-runtime lib/now/templates/attribute.vim
-runtime lib/now/templates/entities.vim
-runtime lib/now/templates/formatter.vim
-runtime lib/now/templates/template.vim
-runtime lib/now/templates/updatableheaderlines.vim
-
-command! -nargs=? Template call s:template(<f-args>)
+command! -nargs=? Template call s:template_cmd(<f-args>)
 
 augroup templates
-  autocmd BufNewFile		    * call s:template(&ft, expand('<afile>:t'))
+  autocmd BufNewFile		    * call s:template(0, &ft, "")
   autocmd BufWritePre,FileWritePre  * call s:update_updatable_headerlines()
 augroup end
 
@@ -72,17 +57,16 @@ endfunction
 " desire.
 
 " TODO: I guess these should really be instantiated for every template.
-let s:FileDescriptionPlaceholder = {
+let s:file_description_placeholder = {
       \   'name': 'file-description',
       \   'attributes': {'format': 'contents: %s'}
       \ }
 
-function s:FileDescriptionPlaceholder.expand(template, attributes) dict
-  return g:NOW.Templates.Formatter.new(a:template, self, a:attributes['format'])
-                                 \.format()
+function s:file_description_placeholder.expand(template, attributes) dict
+  return now#template#formatter#new(a:template, self, a:attributes['format']).format()
 endfunction
 
-function s:FileDescriptionPlaceholder.directive(template, lnum, offset, directive) dict
+function s:file_description_placeholder.directive(template, lnum, offset, directive) dict
   if a:directive == 's'
     return s:try_input('Contents of this file: ', "")
   elseif a:directive == 'f'
@@ -96,41 +80,42 @@ function s:FileDescriptionPlaceholder.directive(template, lnum, offset, directiv
   end
 endfunction
 
-call NOW.Templates.placeholders.register(s:FileDescriptionPlaceholder)
+call now#template#placeholders#register(s:file_description_placeholder)
 
-let s:CopyrightPlaceholder = {
+let s:copyright_placeholder = {
       \   'name': 'copyright',
       \   'attributes': {'format': 'Copyright © %Y %N'}
       \ }
 
-function s:CopyrightPlaceholder.expand(template, attributes) dict
-  return g:NOW.Templates.Formatter.new(a:template, self, a:attributes['format'])
-                                 \.format()
+" TODO: Placeholders should be based off of a placeholder mix-in that has this
+" method, as it is usually the same.
+function s:copyright_placeholder.expand(template, attributes) dict
+  return now#template#formatter#new(a:template, self, a:attributes['format']).format()
 endfunction
 
-function s:CopyrightPlaceholder.directive(template, lnum, offset, directive) dict
+function s:copyright_placeholder.directive(template, lnum, offset, directive) dict
   if a:directive == 'N'
-    return g:NOW.System.User.email_address()
+    return now#system#user#email_address()
   else
     return strftime('%' . a:directive)
   end
 endfunction
 
-call NOW.Templates.placeholders.register(s:CopyrightPlaceholder)
+call now#template#placeholders#register(s:copyright_placeholder)
 
-let s:LicensePlaceholder = {
+let s:license_placeholder = {
       \   'name': 'license',
       \   'attributes': {'name': "", 'file': ""}
       \ }
 
-function s:LicensePlaceholder.expand(template, attributes) dict
+function s:license_placeholder.expand(template, attributes) dict
   let file = a:attributes['file'].value
   if file == ""
     if a:attributes['name'].value == ""
-      let a:attributes['name'].value = g:NOW.Vim.b_or_g('now_templates_license', 'GPL')
+      let a:attributes['name'].value = now#vim#b_or_g('now_templates_license', 'GPL')
     endif
-    let file = g:NOW.File.join(expand(g:now_templates_template_path),
-                             \ a:attributes['name'].value . '.license')
+    let file = now#file#join(expand(g:now_templates_template_path),
+          \                  a:attributes['name'].value . '.license')
   endif
 
   if !filereadable(file)
@@ -152,25 +137,24 @@ function s:LicensePlaceholder.expand(template, attributes) dict
   return join(contents, "\n")
 endfunction
 
-function s:LicensePlaceholder.cleanup(line) dict
+function s:license_placeholder.cleanup(line) dict
   return substitute(a:line, '\s\+$', "", "")
 endfunction
 
-call NOW.Templates.placeholders.register(s:LicensePlaceholder)
+call now#template#placeholders#register(s:license_placeholder)
 
-let s:NamePlaceholder = {
+let s:name_placeholder = {
       \   'name': 'name',
       \   'attributes': {'format': '%N'}
       \ }
 
-function s:NamePlaceholder.expand(template, attributes) dict
-  return g:NOW.Templates.Formatter.new(a:template, self, a:attributes['format'])
-                                 \.format()
+function s:name_placeholder.expand(template, attributes) dict
+  return now#template#formatter#new(a:template, self, a:attributes['format']).format()
 endfunction
 
-function s:NamePlaceholder.directive(template, lnum, offset, directive) dict
+function s:name_placeholder.directive(template, lnum, offset, directive) dict
   if a:directive == 'N'
-    return g:NOW.System.User.email_address()
+    return now#system#user#email_address()
   else
     throw a:template.positioned_message(a:lnum, a:offset,
                                       \ 'unrecognized directive ‘%s’',
@@ -178,17 +162,35 @@ function s:NamePlaceholder.directive(template, lnum, offset, directive) dict
   end
 endfunction
 
-call NOW.Templates.placeholders.register(s:NamePlaceholder)
+call now#template#placeholders#register(s:name_placeholder)
 
-function s:find_template_file(ft, interactive)
-  let template_file = g:NOW.File.join(expand(g:now_templates_template_path),
-                                    \ a:ft . '.template')
+function s:find_template_file(interactive, filetype, subtype)
+  if a:filetype == ""
+    return ""
+  endif
+  let template_path = expand(g:now_templates_template_path)
+  let template_file = now#file#join(template_path, a:filetype . '.template')
+  let template_subpath = now#file#join(template_path, a:filetype)
+  if isdirectory(template_subpath)
+    let template_path = template_subpath
+    if !a:interactive
+      return template_path
+    endif
+    let subtype = a:subtype
+    if subtype == ""
+      let subtype = input('Subtemplate to use for filetype ' . a:filetype . ': ')
+      if subtype == ""
+        let subtype = 'default'
+      endif
+    endif
+    let template_file = now#file#join(template_path, subtype . '.template')
+  endif
 
   " If we weren’t able to find a template, then depending on if we were called
   " from an autocmd or not, either simply return, or report an error.
   if !filereadable(template_file)
     if a:interactive
-      throw printf('Unable to find template file for filetype ‘%s’', ft)
+      throw printf('Unable to find template file for filetype ‘%s’', a:filetype)
     endif
     return ""
   endif
@@ -196,17 +198,18 @@ function s:find_template_file(ft, interactive)
   return template_file
 endfunction
 
-" Called by autocmd above and Template command.
-function s:template(...)
-  " Get the 'filetype' of the file we want to find a template for.
-  let ft = (a:0 > 0) ? a:1 : &ft
+function s:template_cmd(...)
+  call s:template(0, (a:0 > 0) ? a:1 : &filetype, (a:0 > 1) ? a:1 : "")
+endfunction
 
+" Called by autocmd above.
+function s:template(interactive, filetype, subtype)
   try
-    let template_file = s:find_template_file(ft, a:0 < 2)
+    let template_file = s:find_template_file(1, a:filetype, a:subtype)
     if template_file == ""
       return
     endif
-    let template = g:NOW.Templates.Template.new(template_file)
+    let template = now#template#new(template_file)
     call template.expand()
   catch /^\%(Vim\)\@!/
     echohl ErrorMsg
@@ -224,38 +227,38 @@ endfunction
 function s:position_cursor_at_end_of_template()
   let lnum = 1
 
-  let skip = g:NOW.Vim.b_or_g('now_templates_skip_before_header_regex')
+  let skip = now#vim#b_or_g('now_templates_skip_before_header_regex')
   if skip != ""
-    let lnum = g:NOW.Vim.Motion.iterate_lines_matching(skip, lnum)
+    let lnum = now#vim#motion#iterate_lines_matching(skip, lnum)
   endif
 
-  let lnum = g:NOW.Vim.Motion.iterate_lines_not_matching(
-                 \ g:NOW.Vim.b_or_g('now_templates_beginning_of_header_regex'),
+  let lnum = now#vim#motion#iterate_lines_not_matching(
+                 \ now#vim#b_or_g('now_templates_beginning_of_header_regex'),
                                   \ lnum)
 
-  call g:NOW.Vim.Motion.iterate_lines_not_matching(
-                \ g:NOW.Vim.b_or_g('now_templates_end_of_header_regex'), lnum)
+  let lnum = now#vim#motion#iterate_lines_not_matching(
+                \ now#vim#b_or_g('now_templates_end_of_header_regex'), lnum)
 
   call cursor(lnum + 1, 0)
 endfunction
 
-let s:LatestRevisionUpdater = {
+let s:latest_revision_updater = {
       \ 'pattern': '^\(.\{1,3}\<Latest Revision\>\s*:\s*\).*$',
       \ 'time_format': '%Y-%m-%d'
       \ }
 
-function s:LatestRevisionUpdater.update(line, lnum, matches) dict
+function s:latest_revision_updater.update(line, lnum, matches) dict
   return printf("%s%s", a:matches[1],
-              \ strftime(g:NOW.Vim.b_or_g('now_templates_latest_revision_time_format',
+              \ strftime(now#vim#b_or_g('now_templates_latest_revision_time_format',
                                         \ self.time_format)))
 endfunction
 
-call NOW.Templates.UpdatableHeaderlines.register(s:LatestRevisionUpdater)
+call now#template#updatableheaderlines#register(s:latest_revision_updater)
 
 " Called by autocmd above.
 function s:update_updatable_headerlines()
   " If we don't have a template for this kind of file, don't update it.
-  if s:find_template_file(&ft, 0) == ""
+  if s:find_template_file(0, &filetype, "") == ""
     return
   endif
 
@@ -270,7 +273,7 @@ function s:update_updatable_headerlines()
   endif
 
   try
-    call g:NOW.Templates.UpdatableHeaderlines.update()
+    call now#template#updatableheaderlines#update()
   catch /^\%(Vim\)\@!/
     echohl ErrorMsg
     echo v:exception
