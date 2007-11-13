@@ -1,6 +1,6 @@
 " Vim plugin file
 " Maintainer:	    Nikolai Weibull <now@bitwi.se>
-" Latest Revision:  2007-09-20
+" Latest Revision:  2007-11-13
 
 if exists('loaded_plugin_now_templates')
   finish
@@ -200,6 +200,9 @@ endfunction
 
 function s:template_cmd(...)
   call s:template(0, (a:0 > 0) ? a:1 : &filetype, (a:0 > 1) ? a:1 : "")
+  if a:0 > 0
+    execute 'setf' a:1
+  endif
 endfunction
 
 " Called by autocmd above.
