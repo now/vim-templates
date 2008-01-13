@@ -1,6 +1,6 @@
 " Vim autoload file
 " Maintainer:       Nikolai Weibull <now@bitwi.se>
-" Latest Revision:  2007-09-20
+" Latest Revision:  2008-01-13
 
 let s:cpo_save = &cpo
 set cpo&vim
@@ -38,7 +38,7 @@ endfunction
 function now#template#object.read_template_file() dict
   let empty = (line('$') == 1 && getline('$') == "")
 
-  silent keepjumps keepalt execute '0read' self.file
+  silent execute 'keepjumps keepalt 0read' self.file
   silent! '[,']foldopen!
 
   if empty
