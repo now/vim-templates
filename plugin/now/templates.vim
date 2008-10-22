@@ -1,7 +1,3 @@
-" Vim plugin file
-" Maintainer:	    Nikolai Weibull <now@bitwi.se>
-" Latest Revision:  2007-11-13
-
 if exists('loaded_plugin_now_templates')
   finish
 endif
@@ -12,7 +8,8 @@ set cpo&vim
 
 command! -nargs=? Template call s:template_cmd(<f-args>)
 
-augroup templates
+augroup plugin-now-templates
+  autocmd!
   autocmd BufNewFile		    * call s:template(0, &ft, "")
   autocmd BufWritePre,FileWritePre  * call s:update_updatable_headerlines()
 augroup end
@@ -43,7 +40,7 @@ endif
 
 " Try to get some input from the user.  If the user is uninterested, throw an
 " error that can be caught further up to exit the substitution of placeholders.
-function s:try_input(prompt, text)
+function! s:try_input(prompt, text)
   let input = input(a:prompt, a:text)
   if input == ''
     throw 'abort expansion'
@@ -62,11 +59,11 @@ let s:file_description_placeholder = {
       \   'attributes': {'format': 'contents: %s'}
       \ }
 
-function s:file_description_placeholder.expand(template, attributes) dict
+function! s:file_description_placeholder.expand(template, attributes) dict
   return now#template#formatter#new(a:template, self, a:attributes['format']).format()
 endfunction
 
-function s:file_description_placeholder.directive(template, lnum, offset, directive) dict
+function! s:file_description_placeholder.directive(template, lnum, offset, directive) dict
   if a:directive == 's'
     return s:try_input('Contents of this file: ', "")
   elseif a:directive == 'f'
@@ -89,11 +86,11 @@ let s:copyright_placeholder = {
 
 " TODO: Placeholders should be based off of a placeholder mix-in that has this
 " method, as it is usually the same.
-function s:copyright_placeholder.expand(template, attributes) dict
+function! s:copyright_placeholder.expand(template, attributes) dict
   return now#template#formatter#new(a:template, self, a:attributes['format']).format()
 endfunction
 
-function s:copyright_placeholder.directive(template, lnum, offset, directive) dict
+function! s:copyright_placeholder.directive(template, lnum, offset, directive) dict
   if a:directive == 'N'
     return now#system#user#email_address()
   else
@@ -108,7 +105,7 @@ let s:license_placeholder = {
       \   'attributes': {'name': "", 'file': ""}
       \ }
 
-function s:license_placeholder.expand(template, attributes) dict
+function! s:license_placeholder.expand(template, attributes) dict
   let file = a:attributes['file'].value
   if file == ""
     if a:attributes['name'].value == ""
@@ -137,7 +134,7 @@ function s:license_placeholder.expand(template, attributes) dict
   return join(contents, "\n")
 endfunction
 
-function s:license_placeholder.cleanup(line) dict
+function! s:license_placeholder.cleanup(line) dict
   return substitute(a:line, '\s\+$', "", "")
 endfunction
 
@@ -148,11 +145,11 @@ let s:name_placeholder = {
       \   'attributes': {'format': '%N'}
       \ }
 
-function s:name_placeholder.expand(template, attributes) dict
+function! s:name_placeholder.expand(template, attributes) dict
   return now#template#formatter#new(a:template, self, a:attributes['format']).format()
 endfunction
 
-function s:name_placeholder.directive(template, lnum, offset, directive) dict
+function! s:name_placeholder.directive(template, lnum, offset, directive) dict
   if a:directive == 'N'
     return now#system#user#email_address()
   else
@@ -164,7 +161,7 @@ endfunction
 
 call now#template#placeholders#register(s:name_placeholder)
 
-function s:find_template_file(interactive, filetype, subtype)
+function! s:find_template_file(interactive, filetype, subtype)
   if a:filetype == ""
     return ""
   endif
@@ -198,7 +195,7 @@ function s:find_template_file(interactive, filetype, subtype)
   return template_file
 endfunction
 
-function s:template_cmd(...)
+function! s:template_cmd(...)
   call s:template(0, (a:0 > 0) ? a:1 : &filetype, (a:0 > 1) ? a:1 : "")
   if a:0 > 0
     execute 'setf' a:1
@@ -206,7 +203,7 @@ function s:template_cmd(...)
 endfunction
 
 " Called by autocmd above.
-function s:template(interactive, filetype, subtype)
+function! s:template(interactive, filetype, subtype)
   try
     let template_file = s:find_template_file(1, a:filetype, a:subtype)
     if template_file == ""
@@ -227,7 +224,7 @@ function s:template(interactive, filetype, subtype)
 endfunction
 
 " Move the cursor to the end of the template.
-function s:position_cursor_at_end_of_template()
+function! s:position_cursor_at_end_of_template()
   let lnum = 1
 
   let skip = now#vim#b_or_g('now_templates_skip_before_header_regex')
@@ -250,7 +247,7 @@ let s:latest_revision_updater = {
       \ 'time_format': '%Y-%m-%d'
       \ }
 
-function s:latest_revision_updater.update(line, lnum, matches) dict
+function! s:latest_revision_updater.update(line, lnum, matches) dict
   return printf("%s%s", a:matches[1],
               \ strftime(now#vim#b_or_g('now_templates_latest_revision_time_format',
                                         \ self.time_format)))
@@ -259,7 +256,7 @@ endfunction
 call now#template#updatableheaderlines#register(s:latest_revision_updater)
 
 " Called by autocmd above.
-function s:update_updatable_headerlines()
+function! s:update_updatable_headerlines()
   " If we don't have a template for this kind of file, don't update it.
   if s:find_template_file(0, &filetype, "") == ""
     return
@@ -285,3 +282,4 @@ function s:update_updatable_headerlines()
 endfunction
 
 let &cpo = s:cpo_save
+unlet s:cpo_save

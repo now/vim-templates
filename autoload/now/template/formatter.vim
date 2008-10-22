@@ -1,11 +1,7 @@
-" Vim autoload file
-" Maintainer:	    Nikolai Weibull <now@bitwi.se>
-" Latest Revision:  2007-09-20
-
 let s:cpo_save = &cpo
 set cpo&vim
 
-function now#template#formatter#new(template, placeholder, format)
+function! now#template#formatter#new(template, placeholder, format)
   let formatter = deepcopy(g:now#template#formatter#object)
   let formatter.template = a:template
   let formatter.placeholder = a:placeholder
@@ -15,7 +11,7 @@ endfunction
 
 let now#template#formatter#object = {}
 
-function now#template#formatter#object.format() dict
+function! now#template#formatter#object.format() dict
   let self.offset = 0
   let self.end = strlen(self.fmt.value)
   let new = ""
@@ -26,11 +22,11 @@ function now#template#formatter#object.format() dict
   return new
 endfunction
 
-function now#template#formatter#object.format_char(c) dict
+function! now#template#formatter#object.format_char(c) dict
   return (a:c == '%') ? self.format_directive() : a:c
 endfunction
 
-function now#template#formatter#object.format_directive() dict
+function! now#template#formatter#object.format_directive() dict
   let self.offset += 1
   if self.offset == self.end
     throw self.template.positioned_message(self.fmt.lnum,
@@ -46,3 +42,4 @@ function now#template#formatter#object.format_directive() dict
 endfunction
 
 let &cpo = s:cpo_save
+unlet s:cpo_save

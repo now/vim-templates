@@ -1,11 +1,7 @@
-" Vim autoload file
-" Maintainer:       Nikolai Weibull <now@bitwi.se>
-" Latest Revision:  2008-01-13
-
 let s:cpo_save = &cpo
 set cpo&vim
 
-function now#template#new(file)
+function! now#template#new(file)
   let template = deepcopy(g:now#template#object)
   let template.file = a:file
   let template.line = ""
@@ -16,7 +12,7 @@ endfunction
 
 let now#template#object = {}
 
-function now#template#object.expand() dict
+function! now#template#object.expand() dict
   call self.read_template_file()
 
   let skip = now#vim#b_or_g('now_templates_skip_before_header_regex')
@@ -35,7 +31,7 @@ endfunction
 
 " Read in the template.  Remove the last line if this is a new file, since it
 " will be a remnant of the sole empty line from the new buffer.
-function now#template#object.read_template_file() dict
+function! now#template#object.read_template_file() dict
   let empty = (line('$') == 1 && getline('$') == "")
 
   silent execute 'keepjumps keepalt 0read' self.file
@@ -46,18 +42,18 @@ function now#template#object.read_template_file() dict
   endif
 endfunction
 
-function now#template#object.message(message, ...) dict
+function! now#template#object.message(message, ...) dict
   return call(self.positioned_message,
             \ extend([self.lnum, self.offset, a:message], a:000), self)
 endfunction
 
-function now#template#object.positioned_message(lnum, offset, message, ...) dict
+function! now#template#object.positioned_message(lnum, offset, message, ...) dict
   let message = a:0 > 0 ? call('printf', extend([a:message], a:000)) : a:message
   return printf("%s:%d:%d: %s\n%s\n%*s", self.file, a:lnum, a:offset + 1,
               \ message, self.line, a:offset + 1, '^')
 endfunction
 
-function now#template#object.expand_line(line, lnum) dict
+function! now#template#object.expand_line(line, lnum) dict
   try
     let self.line = a:line
     let self.lnum = a:lnum
@@ -78,7 +74,7 @@ function now#template#object.expand_line(line, lnum) dict
   return 1
 endfunction
 
-function now#template#object.expand_placeholder(end) dict
+function! now#template#object.expand_placeholder(end) dict
   let start = self.offset
   let self.offset += 1
   let [tag, attributes] = self.parse_tag(a:end)
@@ -93,7 +89,7 @@ function now#template#object.expand_placeholder(end) dict
   return expansion
 endfunction
 
-function now#template#object.merge_attributes(attributes, defaults, name) dict
+function! now#template#object.merge_attributes(attributes, defaults, name) dict
   for attribute in values(a:attributes)
     if !has_key(a:defaults, attribute.name)
       throw self.positioned_message(attribute.lnum, attribute.offset,
@@ -117,7 +113,7 @@ endfunction
 
 " TODO: should check that a:new isn’t equal to self.line, if it is, just skip
 " it.
-function now#template#object.update_line(new) dict
+function! now#template#object.update_line(new) dict
   let lines = split(a:new, "\n", 1)
   let last_line = lines[len(lines) - 1]
   let lines[len(lines) - 1] = last_line . strpart(self.line, self.offset)
@@ -131,7 +127,7 @@ function now#template#object.update_line(new) dict
   let self.offset = len(last_line)
 endfunction
 
-function now#template#object.parse_tag(end) dict
+function! now#template#object.parse_tag(end) dict
   let start = self.offset - 1
 
   let tag = matchstr(self.line, '^[[:alpha:]_][[:alnum:]._-]*', self.offset)
@@ -157,7 +153,7 @@ function now#template#object.parse_tag(end) dict
   return [tag, attributes]
 endfunction
 
-function now#template#object.parse_attributes(limit) dict
+function! now#template#object.parse_attributes(limit) dict
   let attributes = {}
   let end = matchend(self.line, '^\s\+', self.offset)
   while end != -1
@@ -175,14 +171,14 @@ function now#template#object.parse_attributes(limit) dict
   return attributes
 endfunction
 
-function now#template#object.parse_attribute(limit) dict
+function! now#template#object.parse_attribute(limit) dict
   let attribute = self.parse_attribute_name()
   call self.skip_attribute_equals(a:limit)
   let attribute.value = self.parse_attribute_value(a:limit)
   return attribute
 endfunction
 
-function now#template#object.parse_attribute_name() dict
+function! now#template#object.parse_attribute_name() dict
   let name = matchstr(self.line, '^[[:alpha:]_][[:alnum:]._-]*', self.offset)
   if name == ""
     throw self.message('invalid attribute name')
@@ -192,7 +188,7 @@ function now#template#object.parse_attribute_name() dict
   return attribute
 endfunction
 
-function now#template#object.skip_attribute_equals(limit) dict
+function! now#template#object.skip_attribute_equals(limit) dict
   let end = matchend(self.line, '^\s*=\s*', self.offset)
   if end == -1 || end == a:limit || self.offset == a:limit
     throw self.message('attribute without value')
@@ -200,7 +196,7 @@ function now#template#object.skip_attribute_equals(limit) dict
   let self.offset = end
 endfunction
 
-function now#template#object.parse_attribute_value(limit) dict
+function! now#template#object.parse_attribute_value(limit) dict
   let start = self.offset
   let delimiter = self.parse_attribute_value_delimiter(a:limit)
   let value = ""
@@ -215,7 +211,7 @@ function now#template#object.parse_attribute_value(limit) dict
   return value
 endfunction
 
-function now#template#object.parse_attribute_value_delimiter(limit) dict
+function! now#template#object.parse_attribute_value_delimiter(limit) dict
   let delimiter = self.line[self.offset]
   if delimiter != '"' && delimiter != "'"
     throw self.message('expected ‘"’ or ‘''’')
@@ -224,7 +220,7 @@ function now#template#object.parse_attribute_value_delimiter(limit) dict
   return delimiter
 endfunction
 
-function now#template#object.get_char() dict
+function! now#template#object.get_char() dict
   if self.line[self.offset] == '&'
     self.offset += 1
     return self.parse_entity_reference()
@@ -235,7 +231,7 @@ function now#template#object.get_char() dict
   return c
 endfunction
 
-function now#template#object.parse_entity_reference() dict
+function! now#template#object.parse_entity_reference() dict
   let end = matchend(self.line, '^[[:alpha:]_][[:alnum:]._-]*', self.offset)
   if end == -1
     throw self.message('character reference without a name')
@@ -250,3 +246,4 @@ function now#template#object.parse_entity_reference() dict
 endfunction
 
 let &cpo = s:cpo_save
+unlet s:cpo_save

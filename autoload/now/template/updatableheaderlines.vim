@@ -1,17 +1,13 @@
-" Vim autoload file
-" Maintainer:       Nikolai Weibull <now@bitwi.se>
-" Latest Revision:  2007-09-20
-
 let s:cpo_save = &cpo
 set cpo&vim
 
 let s:updaters = []
 
-function now#template#updatableheaderlines#register(updater)
+function! now#template#updatableheaderlines#register(updater)
   call add(s:updaters, a:updater)
 endfunction
 
-function now#template#updatableheaderlines#update()
+function! now#template#updatableheaderlines#update()
   let lnum = 1
 
   let skip = now#vim#b_or_g('now_templates_skip_before_header_regex')
@@ -28,7 +24,7 @@ function now#template#updatableheaderlines#update()
                 \ 0, 'now#template#updatableheaderlines#update_line')
 endfunction
 
-function now#template#updatableheaderlines#update_line(line, lnum)
+function! now#template#updatableheaderlines#update_line(line, lnum)
   for updater in s:updaters
     let matches = matchlist(a:line, updater.pattern)
     if len(matches) == 0
@@ -44,3 +40,4 @@ function now#template#updatableheaderlines#update_line(line, lnum)
 endfunction
 
 let &cpo = s:cpo_save
+unlet s:cpo_save
