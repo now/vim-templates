@@ -81,7 +81,7 @@ call now#template#placeholders#register(s:file_description_placeholder)
 
 let s:copyright_placeholder = {
       \   'name': 'copyright',
-      \   'attributes': {'format': 'Copyright © %Y %N'}
+      \   'attributes': {'format': '© %Y %N'}
       \ }
 
 " TODO: Placeholders should be based off of a placeholder mix-in that has this
@@ -92,7 +92,7 @@ endfunction
 
 function! s:copyright_placeholder.directive(template, lnum, offset, directive) dict
   if a:directive == 'N'
-    return now#system#user#email_address()
+    return now#system#user#full_name()
   else
     return strftime('%' . a:directive)
   end
