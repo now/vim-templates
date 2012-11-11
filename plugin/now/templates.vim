@@ -205,7 +205,7 @@ endfunction
 " Called by autocmd above.
 function! s:template(interactive, filetype, subtype)
   try
-    let template_file = s:find_template_file(1, a:filetype, a:subtype)
+    let template_file = s:find_template_file(a:interactive, a:filetype, a:subtype)
     if template_file == ""
       return
     endif
